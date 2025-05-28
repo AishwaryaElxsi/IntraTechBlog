@@ -1,0 +1,36 @@
+body {
+  margin: 0;
+  font-family: sans-serif;
+  background: #f4f4f4;
+}
+
+nav.navbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #334152;
+  color: #fff;
+  padding: 1em;
+}
+nav.navbar a {
+  color: #ffdb87;
+  margin-right: 1em;
+  text-decoration: none;
+}
+nav.navbar button {
+  background: #e78923;
+  color: #fff;
+  border: none;
+  padding: 0.5em 1em;
+  margin-left: 0.5em;
+  border-radius: 5px;
+  cursor: pointer;
+}
+main {
+  padding: 1.5em;
+  max-width: 800px;
+  margin: auto;
+  background: #fff;
+  min-height: 80vh;
+  border-radius: 6px;
+}
