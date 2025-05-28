@@ -58,33 +58,35 @@ router.get('/', async (req, res) => {
   }
 });
 
-// POST /api/comments
-// Add a new comment to a post
+/* POST /api/comments
+   Add a new comment to a post */
 router.post('/', requireAuth, async (req, res) => {
   try {
     const { post, body } = req.body;
     if (!post || !body || !body.trim()) {
       return res.status(400).json({ error: "Invalid data" });
     }
-    // Ensure post exists and published
+    // Ensure post exists and published + tech tag
     const TECH_TAGS = [
       "tech", "engineering", "development", "dev", "software", "backend", "frontend", "cloud", "security", "code", "architecture"
     ];
     const postDoc = await Post.findOne({ _id: post, published: true, tags: { $in: TECH_TAGS } });
     if (!postDoc) return res.status(404).json({ error: "Post not found or not a tech blog." });
-    // Create comment
+    // Create and save comment
     const comment = new Comment({
       post,
       author: req.user.id,
       body,
     });
     await comment.save();
-    await comment.populate('author', 'name avatar email');
+    // Simulate author "populate"
+    const authorObj = await User.findById(comment.author);
+
     res.status(201).json({
       id: comment._id,
       body: comment.body,
       createdAt: comment.createdAt,
-      author: comment.author,
+      author: (authorObj ? { id: authorObj.id, name: authorObj.name, avatar: authorObj.avatar, email: authorObj.email } : null),
     });
   } catch (err) {
     console.error("Add comment error:", err);
