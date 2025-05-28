@@ -208,16 +208,17 @@ router.post('/:id/bookmark', requireAuth, async (req, res) => {
     });
     if (!post) return res.status(404).json({ error: "Post not found or not a tech blog." });
 
-    // We'll store bookmarks on the user (preferred for scalability), but as a placeholder, add a reactions "bookmark" type in post
-    const existing = (post.reactions || []).find(
-      r => r.user && r.user.toString() === userId && r.type === "bookmark"
+    // File-based: reactions as bookmark
+    if (!Array.isArray(post.reactions)) post.reactions = [];
+    const existing = post.reactions.find(
+      r => r.user && String(r.user) === String(userId) && r.type === "bookmark"
     );
     if (!existing) {
       post.reactions.push({ user: userId, type: "bookmark" });
     } else {
       // Remove
       post.reactions = post.reactions.filter(
-        r => !(r.user && r.user.toString() === userId && r.type === "bookmark")
+        r => !(r.user && String(r.user) === String(userId) && r.type === "bookmark")
       );
     }
     await post.save();
