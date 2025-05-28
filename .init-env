@@ -1,0 +1,29 @@
+# Initialized Development Environment for IntraTech Blogger Monolithic Application
+
+# Python dependencies (virtual environment is .venv in this folder, versions are authoritative)
+[python-packages]
+fastapi==0.115.7
+uvicorn==0.34.0
+sqlalchemy==2.0.37
+pydantic==2.10.6
+black==24.10.0
+flake8==7.1.1
+pytest==8.3.4
+
+# JS/Node dependencies (installed locally via npm)
+[node-packages]
+express@4.21.2
+
+# System/Dev Tools
+- python3 (3.12.3)
+- pip3 (24.0)
+- node (18.19.1)
+- npm (9.2.0)
+- yarn (1.22.22)
+- npx (9.2.0)
+- docker (27.5.1)
+- git (2.43.0)
+- curl (8.5.0)
+- jq (1.7.1)
+
+# All required tools and dependencies present as of initialization.
