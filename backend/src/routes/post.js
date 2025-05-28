@@ -231,9 +231,58 @@ router.post('/:id/bookmark', requireAuth, async (req, res) => {
   }
 });
 
-// Leave the create post endpoint stub
-router.post('/', requireAuth, (req, res) => {
-  res.send('Create post endpoint');
+/**
+ * POST /api/posts
+ * Create a new blog post (tech-only, published). 
+ * PUBLIC_INTERFACE
+ */
+router.post('/', requireAuth, async (req, res) => {
+  try {
+    const { title, body, tags, featuredImage, published } = req.body;
+    // Validate
+    if (!title || !body || !Array.isArray(tags) || tags.length === 0)
+      return res.status(400).json({ error: "Title, tags, and body required." });
+    // Must have at least one tech-related tag
+    const TECH_TAGS = [
+      "tech", "engineering", "development", "dev", "software", "backend", "frontend", "cloud", "security", "code", "architecture"
+    ];
+    const validTechTag = tags.some(t => TECH_TAGS.includes(t.toLowerCase()));
+    if (!validTechTag) {
+      return res.status(400).json({ error: "Post must include a tech-related tag." });
+    }
+
+    const post = new Post({
+      author: req.user.id,
+      title: title.trim(),
+      body,
+      tags: tags.map(t => t.trim()),
+      featuredImage: featuredImage || "",
+      published: published !== undefined ? published : true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      likes: [],
+      reactions: [],
+    });
+    await post.save();
+    // "Populate" author for response
+    const authorObj = await User.findById(post.author);
+    res.status(201).json({
+      id: post._id,
+      title: post.title,
+      body: post.body,
+      tags: post.tags,
+      featuredImage: post.featuredImage,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      author: authorObj ? { id: authorObj.id, name: authorObj.name, avatar: authorObj.avatar, email: authorObj.email } : null,
+      likes: [],
+      reactions: [],
+      published: post.published
+    });
+  } catch (err) {
+    console.error("Create post error:", err);
+    res.status(500).json({ error: "Failed to create post" });
+  }
 });
 
 export default router;
