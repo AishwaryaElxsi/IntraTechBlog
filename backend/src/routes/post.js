@@ -105,6 +105,121 @@ router.get('/tags', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/posts/:id
+ * Fetch a single, published, tech-tagged post with author info.
+ * PUBLIC_INTERFACE
+ */
+router.get('/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Define a set of "tech" tags for enforcement
+    const TECH_TAGS = [
+      "tech", "engineering", "development", "dev", "software", "backend", "frontend", "cloud", "security", "code", "architecture"
+    ];
+    // Find the post, ensuring published and at least one "tech" tag
+    const post = await Post.findOne({ 
+      _id: id, 
+      published: true,
+      tags: { $in: TECH_TAGS } // Enforce at least one tech tag
+    }).populate('author', 'name avatar email role');
+    if (!post) return res.status(404).json({ error: "Post not found or not a tech blog." });
+
+    // Prepare full post info
+    res.json({
+      id: post._id,
+      title: post.title,
+      body: post.body,
+      tags: post.tags,
+      featuredImage: post.featuredImage,
+      createdAt: post.createdAt,
+      updatedAt: post.updatedAt,
+      author: post.author,
+      likes: post.likes || [],
+      reactions: post.reactions || [],
+      published: post.published
+    });
+  } catch (err) {
+    console.error("Single post fetch error:", err);
+    res.status(500).json({ error: "Failed to fetch post." });
+  }
+});
+
+/**
+ * POST /api/posts/:id/clap
+ * Toggle clap/like on a tech-only post by authenticated user.
+ * PUBLIC_INTERFACE
+ */
+router.post('/:id/clap', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const TECH_TAGS = [
+      "tech", "engineering", "development", "dev", "software", "backend", "frontend", "cloud", "security", "code", "architecture"
+    ];
+    let post = await Post.findOne({
+      _id: id,
+      published: true,
+      tags: { $in: TECH_TAGS }
+    });
+    if (!post) return res.status(404).json({ error: "Post not found or not a tech blog." });
+
+    // Toggle the like: if not liked, add, else remove
+    const idx = post.likes.map(l => l.toString()).indexOf(userId);
+    if (idx === -1) {
+      post.likes.push(userId);
+    } else {
+      post.likes.splice(idx, 1);
+    }
+    await post.save();
+    res.json({ likes: post.likes.length, liked: idx === -1 });
+  } catch (err) {
+    console.error("Clap error:", err);
+    res.status(500).json({ error: "Failed to clap/unclap." });
+  }
+});
+
+/**
+ * POST /api/posts/:id/bookmark
+ * Toggle bookmark on a tech-only post by authenticated user.
+ * PUBLIC_INTERFACE
+ */
+router.post('/:id/bookmark', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user.id;
+    const TECH_TAGS = [
+      "tech", "engineering", "development", "dev", "software", "backend", "frontend", "cloud", "security", "code", "architecture"
+    ];
+    let post = await Post.findOne({
+      _id: id,
+      published: true,
+      tags: { $in: TECH_TAGS }
+    });
+    if (!post) return res.status(404).json({ error: "Post not found or not a tech blog." });
+
+    // We'll store bookmarks on the user (preferred for scalability), but as a placeholder, add a reactions "bookmark" type in post
+    const existing = (post.reactions || []).find(
+      r => r.user && r.user.toString() === userId && r.type === "bookmark"
+    );
+    if (!existing) {
+      post.reactions.push({ user: userId, type: "bookmark" });
+    } else {
+      // Remove
+      post.reactions = post.reactions.filter(
+        r => !(r.user && r.user.toString() === userId && r.type === "bookmark")
+      );
+    }
+    await post.save();
+    // Count bookmarks
+    const count = (post.reactions || []).filter(r => r.type === "bookmark").length;
+    res.json({ bookmarks: count, bookmarked: !existing });
+  } catch (err) {
+    console.error("Bookmark error:", err);
+    res.status(500).json({ error: "Failed to bookmark/unbookmark." });
+  }
+});
+
 // Leave the create post endpoint stub
 router.post('/', requireAuth, (req, res) => {
   res.send('Create post endpoint');
