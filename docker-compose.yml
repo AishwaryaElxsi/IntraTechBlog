@@ -1,0 +1,40 @@
+version: '3.9'
+services:
+  backend:
+    build: ./backend
+    container_name: intratech_backend
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=development
+      - MONGO_URI=mongodb://mongo:27017/intratechblog
+      - SSO_CLIENT_ID=sample-client-id
+      - SSO_CLIENT_SECRET=sample-client-secret
+      - SSO_ISSUER=https://company-sso.example.com
+      - EMAIL_API_URL=http://internal-email:4000
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+  frontend:
+    build: ./frontend
+    container_name: intratech_frontend
+    restart: unless-stopped
+    environment:
+      - REACT_APP_API_URL=http://localhost:5000
+      - REACT_APP_SSO_CLIENT_ID=sample-client-id
+      - REACT_APP_SSO_ISSUER=https://company-sso.example.com
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+  mongo:
+    image: mongo:5.0
+    container_name: intratech_mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+volumes:
+  mongo_data:
