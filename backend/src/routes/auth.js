@@ -71,8 +71,21 @@ router.post(
         token,
       });
     } catch (err) {
-      console.error('Registration error:', err);
-      res.status(500).json({ error: 'Registration failed' });
+      // Enhanced error handling & more informative logging for registration
+      if (err instanceof Error && err.message && err.message.toLowerCase().includes("eacces")) {
+        console.error("Registration error: File system access error; ensure backend has write permission to data directory.", err);
+        return res.status(500).json({ error: "Registration failed: server storage misconfiguration" });
+      }
+      // Check for validation/duplicate error
+      if (err && err.message && err.message.toLowerCase().includes("duplicate")) {
+        return res.status(400).json({ error: "User already exists" });
+      }
+      console.error('Registration error:', err && err.stack ? err.stack : err);
+      let errorMessage = "Registration failed";
+      if (err && err.message) {
+        errorMessage += ": " + err.message;
+      }
+      res.status(500).json({ error: errorMessage });
     }
   }
 );
