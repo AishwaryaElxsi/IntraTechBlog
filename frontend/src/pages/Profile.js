@@ -15,9 +15,10 @@ import {
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import axios from "axios";
-
+import Snackbar from "@mui/material/Snackbar";
+import Alert from "@mui/material/Alert";
 // Reusable styled components
 const ProfileContainer = styled(Box)(({ theme }) => ({
   minHeight: "100vh",
