@@ -14,6 +14,7 @@ import SearchResultsPage from './pages/SearchResultsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import Feed from './pages/Feed';
 
 const theme = createTheme({
   palette: {
@@ -42,6 +43,7 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
+            <Route path="/feed" element={<Feed />} />
             <Route path="/posts" element={<PostListPage />} />
             <Route path="/posts/:id" element={<PostDetailPage />} />
             <Route path="/editor" element={<EditorPage />} />
