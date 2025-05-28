@@ -1,0 +1,20 @@
+{
+  "users": [
+    {
+      "id": "user_john_doe_001",
+      "_id": "user_john_doe_001",
+      "ssoId": null,
+      "email": "johndoe@gmail.com",
+      "passwordHash": "$2a$12$xXngJb8ED5Xi7H5Rw0W0reRPR51qZTREvn1yJ/XorykOLHbCQEf5G",
+      "name": "John Doe",
+      "avatar": "",
+      "role": "user",
+      "createdAt": "2024-06-07T09:00:00.000Z",
+      "followers": [],
+      "following": []
+    }
+  ],
+  "posts": [],
+  "comments": [],
+  "notifications": []
+}
