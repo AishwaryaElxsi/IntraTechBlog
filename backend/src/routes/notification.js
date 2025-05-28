@@ -34,9 +34,14 @@ function requireAuth(req, res, next) {
  */
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const notifications = await Notification.find({ recipient: req.user.id })
-      .sort({ createdAt: -1 })
-      .populate('sender', 'name avatar email');
+    // Get newest first
+    let notifications = await Notification.find({ recipient: req.user.id, $sort: -1 });
+    // Simulate "populate" sender info
+    const senderIds = Array.from(new Set(notifications.map(n => n.sender).filter(Boolean)));
+    const senderObjs = await Promise.all(senderIds.map(id => User.findById(id)));
+    const senderMap = {};
+    senderObjs.forEach(u => { if (u) senderMap[u.id] = { id: u.id, name: u.name, avatar: u.avatar, email: u.email }; });
+
     res.json({
       notifications: notifications.map(n => ({
         id: n._id,
@@ -44,12 +49,7 @@ router.get('/', requireAuth, async (req, res) => {
         message: n.message,
         unread: n.unread,
         createdAt: n.createdAt,
-        sender: n.sender ? {
-          id: n.sender._id,
-          name: n.sender.name,
-          avatar: n.sender.avatar,
-          email: n.sender.email
-        } : undefined
+        sender: n.sender ? senderMap[n.sender] : undefined
       }))
     });
   } catch (e) {
