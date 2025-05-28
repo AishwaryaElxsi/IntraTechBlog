@@ -169,8 +169,13 @@ router.post('/:id/clap', requireAuth, async (req, res) => {
     });
     if (!post) return res.status(404).json({ error: "Post not found or not a tech blog." });
 
-    // Toggle the like: if not liked, add, else remove
-    const idx = post.likes.map(l => l.toString()).indexOf(userId);
+    // Toggle like: string comparison (file-based)
+    let idx = -1;
+    if (post.likes && Array.isArray(post.likes)) {
+      idx = post.likes.findIndex(l => String(l) === String(userId));
+    } else {
+      post.likes = [];
+    }
     if (idx === -1) {
       post.likes.push(userId);
     } else {
