@@ -37,29 +37,36 @@ function requireAuth(req, res, next) {
 // Auth required
 router.get('/', requireAuth, async (req, res) => {
   try {
-    const { search, tag, page = 1, limit = 10 } = req.query;
+    const { search, tag, author, page = 1, limit = 10 } = req.query;
     const query = {
       published: true,
-      // Only posts tagged with at least one tech-related tag, if company has a "tech only" restriction
-      // Optionally filter only tech blogs, otherwise all published
     };
 
+    if (author) {
+      query.author = author;
+    }
     if (search) {
-      // Case-insensitive search in title and body
+      // Case-insensitive search
       query.$or = [
-        { title:   { $regex: search, $options: 'i' } },
-        { body:    { $regex: search, $options: 'i' } }
+        { title: { $regex: search, $options: 'i' } },
+        { body: { $regex: search, $options: 'i' } }
       ];
     }
     if (tag) {
       query.tags = { $in: [tag] };
     }
 
-    const posts = await Post.find(query)
-      .sort({ createdAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(parseInt(limit))
-      .populate('author', 'name avatar email');
+    let posts = await Post.find(query);
+    // Sort by createdAt desc (newest first)
+    posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    // Pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    posts = posts.slice(skip, skip + parseInt(limit));
+    // Get authors for populate
+    const authorIds = Array.from(new Set(posts.map(p => p.author)));
+    const userObjs = await Promise.all(authorIds.map(id => User.findById(id)));
+    const userMap = {};
+    userObjs.forEach(u => { if (u) userMap[u.id] = { id: u.id, name: u.name, avatar: u.avatar, email: u.email }; });
 
     const feed = posts.map(post => ({
       id: post._id,
@@ -68,12 +75,7 @@ router.get('/', requireAuth, async (req, res) => {
       tags: post.tags,
       featuredImage: post.featuredImage,
       createdAt: post.createdAt,
-      author: {
-        id: post.author?._id,
-        name: post.author?.name,
-        avatar: post.author?.avatar,
-        email: post.author?.email
-      }
+      author: userMap[post.author] || null
     }));
 
     res.json({ posts: feed });
@@ -118,13 +120,14 @@ router.get('/:id', requireAuth, async (req, res) => {
       "tech", "engineering", "development", "dev", "software", "backend", "frontend", "cloud", "security", "code", "architecture"
     ];
     // Find the post, ensuring published and at least one "tech" tag
-    const post = await Post.findOne({ 
-      _id: id, 
+    const post = await Post.findOne({
+      _id: id,
       published: true,
-      tags: { $in: TECH_TAGS } // Enforce at least one tech tag
-    }).populate('author', 'name avatar email role');
+      tags: { $in: TECH_TAGS }
+    });
     if (!post) return res.status(404).json({ error: "Post not found or not a tech blog." });
 
+    const authorObj = post.author ? await User.findById(post.author) : null;
     // Prepare full post info
     res.json({
       id: post._id,
@@ -134,7 +137,9 @@ router.get('/:id', requireAuth, async (req, res) => {
       featuredImage: post.featuredImage,
       createdAt: post.createdAt,
       updatedAt: post.updatedAt,
-      author: post.author,
+      author: (authorObj ? {
+        id: authorObj.id, name: authorObj.name, avatar: authorObj.avatar, email: authorObj.email, role: authorObj.role
+      } : null),
       likes: post.likes || [],
       reactions: post.reactions || [],
       published: post.published
