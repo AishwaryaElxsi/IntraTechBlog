@@ -31,7 +31,12 @@ async function loadDB() {
 /** Save the given dbObject to disk (overwrites all data). */
 async function saveDB(dbObject) {
   await ensureDataFile();
-  await fs.writeFile(dataFile, JSON.stringify(dbObject, null, 2));
+  try {
+    await fs.writeFile(dataFile, JSON.stringify(dbObject, null, 2));
+  } catch (err) {
+    console.error("File write error in saveDB for", dataFile, err);
+    throw new Error("Failed to write data file. File-system permissions or disk full?");
+  }
 }
 
 /**
@@ -62,7 +67,12 @@ export async function insert(collection, data) {
   const newDoc = { ...data, id, _id: id };
   items.push(newDoc);
   db[collection] = items;
-  await saveDB(db);
+  try {
+    await saveDB(db);
+  } catch (err) {
+    console.error(`Insert failed for collection ${collection}, data:`, data, err);
+    throw err;
+  }
   return newDoc;
 }
 /**
@@ -77,7 +87,12 @@ export async function update(collection, id, data) {
   const updated = { ...items[idx], ...data, id, _id: id };
   items[idx] = updated;
   db[collection] = items;
-  await saveDB(db);
+  try {
+    await saveDB(db);
+  } catch (err) {
+    console.error(`Update failed for collection ${collection}, id ${id}, data:`, data, err);
+    throw err;
+  }
   return updated;
 }
 /**
