@@ -1,0 +1,22 @@
+# IntraTech Blogger Monolithic Application Development Environment Initialized
+
+NODE_VERSION=v18.19.1
+NPM_VERSION=9.2.0
+PYTHON_VERSION=3.12.3
+PIP_VERSION=24.0
+GIT_VERSION=2.43.0
+DOCKER_VERSION=27.5.1
+CURL_VERSION=8.5.0
+JQ_VERSION=1.7.1
+
+# Python venv created in .venv and development packages installed with pip
+# Node.js dependency installed:
+#   express@4.21.2 (npm)
+# Python dev dependencies (pip inside venv):
+#   fastapi==0.115.7
+#   uvicorn==0.34.0
+#   sqlalchemy==2.0.37
+#   pydantic==2.10.6
+#   black==24.10.0
+#   flake8==7.1.1
+#   pytest==8.3.4
