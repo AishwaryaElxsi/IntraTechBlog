@@ -1,7 +1,7 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-// The absolute data folder path (ensure it's created!)
+// Robust, cross-environment creation of backend/data/ and db.json on startup
 const dataDir = path.join(process.cwd(), 'backend', 'data');
 const dataFile = path.join(dataDir, 'db.json');
 
@@ -12,12 +12,31 @@ const initialData = {
   notifications: []
 };
 
+/**
+ * Ensure backend/data directory and db.json (file-based database) exist.
+ * Creates required directory and file at backend/src startup if missing.
+ */
 async function ensureDataFile() {
+  // Ensure the directory exists, create recursively if missing
   try {
     await fs.mkdir(dataDir, { recursive: true });
+  } catch (err) {
+    // Directory creation failure: log and throw informative error
+    console.error(`Failed to create data directory at ${dataDir}.`, err);
+    throw new Error(`Cannot create backend/data directory: ${err.message}`);
+  }
+
+  // Ensure the db.json file exists (create it if missing)
+  try {
     await fs.access(dataFile);
   } catch {
-    await fs.writeFile(dataFile, JSON.stringify(initialData, null, 2));
+    // File does not exist, create with initial structure
+    try {
+      await fs.writeFile(dataFile, JSON.stringify(initialData, null, 2));
+    } catch (err) {
+      console.error(`Failed to initialize the data file at ${dataFile}.`, err);
+      throw new Error(`Cannot create backend/data/db.json: ${err.message}`);
+    }
   }
 }
 
