@@ -54,7 +54,8 @@ router.post(
       user = new User({ email, name, role: 'user' });
       await user.setPassword(password);
 
-      await user.save();
+      // Persist user using file-based model
+      await User.saveUser(user);
 
       // Issue JWT
       const token = generateToken(user);

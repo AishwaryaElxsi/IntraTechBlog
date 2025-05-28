@@ -36,16 +36,20 @@ router.get('/', async (req, res) => {
   try {
     const { post } = req.query;
     if (!post) return res.status(400).json({ error: "Missing post id" });
-    // Fetch and populate author
-    const comments = await Comment.find({ post })
-      .sort({ createdAt: 1 })
-      .populate('author', 'name avatar email');
+    // File-based: oldest first and fake author populate
+    let comments = await Comment.find({ post, $sortByCreatedAtAsc: true });
+    // "populate" author field
+    const authorIds = Array.from(new Set(comments.map(c => c.author)));
+    const users = await Promise.all(authorIds.map(id => User.findById(id)));
+    const userMap = {};
+    users.forEach(u => { if (u) userMap[u.id] = { id: u.id, name: u.name, avatar: u.avatar, email: u.email }; });
+
     res.json({
       comments: comments.map(c => ({
         id: c._id,
         body: c.body,
         createdAt: c.createdAt,
-        author: c.author,
+        author: userMap[c.author] || null,
       }))
     });
   } catch (err) {
