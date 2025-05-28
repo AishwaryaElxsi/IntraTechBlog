@@ -97,8 +97,8 @@ router.post('/:id/follow', requireAuth, async (req, res) => {
       const notif = new Notification({
         sender: myId,
         recipient: toFollowId,
-        type: 'follow',
-        message: `${me.name} started following you`,
+        type: 'new_follower',
+        message: 'You have a new follower!',
         unread: true,
         createdAt: new Date()
       });
