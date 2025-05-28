@@ -12,6 +12,8 @@ import ProfilePage from './pages/ProfilePage';
 import AdminDashboard from './pages/AdminDashboard';
 import SearchResultsPage from './pages/SearchResultsPage';
 import NotFoundPage from './pages/NotFoundPage';
+import Login from './pages/Login';
+import Register from './pages/Register';
 
 const theme = createTheme({
   palette: {
@@ -38,6 +40,8 @@ function App() {
         <Layout>
           <Routes>
             <Route path="/" element={<HomePage />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/posts" element={<PostListPage />} />
             <Route path="/posts/:id" element={<PostDetailPage />} />
             <Route path="/editor" element={<EditorPage />} />
