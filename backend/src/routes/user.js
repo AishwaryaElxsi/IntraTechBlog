@@ -1,5 +1,6 @@
 import express from 'express';
 import User from '../models/User.js';
+import Notification from '../models/Notification.js';
 import jwt from 'jsonwebtoken';
 
 const router = express.Router();
@@ -29,7 +30,7 @@ function requireAuth(req, res, next) {
 
 // PUBLIC_INTERFACE
 // User management endpoints
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   // TODO: List users (admin only)
   res.send('List users endpoint');
 });
@@ -38,15 +39,12 @@ router.get('/', (req, res) => {
 // Get the current user's profile (private)
 router.get('/profile', requireAuth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id)
-      .select('-passwordHash')
-      .populate('followers', 'name avatar email')
-      .populate('following', 'name avatar email');
+    const user = await User.findById(req.user.id);
     if (!user) return res.status(404).json({ error: "User not found" });
 
     res.json({
       user: {
-        id: user._id,
+        id: user.id,
         email: user.email,
         name: user.name,
         avatar: user.avatar,
@@ -61,7 +59,6 @@ router.get('/profile', requireAuth, async (req, res) => {
   }
 });
 
-import Notification from '../models/Notification.js';
 // PUBLIC_INTERFACE
 // Follow another employee (by user id)
 router.post('/:id/follow', requireAuth, async (req, res) => {
@@ -72,27 +69,23 @@ router.post('/:id/follow', requireAuth, async (req, res) => {
     return res.status(400).json({ error: "Cannot follow yourself" });
 
   try {
-    const [me, toFollow] = await Promise.all([
-      User.findById(myId),
-      User.findById(toFollowId)
-    ]);
+    const me = await User.findById(myId);
+    const toFollow = await User.findById(toFollowId);
     if (!me || !toFollow)
       return res.status(404).json({ error: "User not found" });
 
-    // Add only if not already following
     let followedNow = false;
     if (!me.following.includes(toFollowId)) {
       me.following.push(toFollowId);
-      await me.save();
+      await User.saveUser(me);
       followedNow = true;
     }
     if (!toFollow.followers.includes(myId)) {
       toFollow.followers.push(myId);
-      await toFollow.save();
+      await User.saveUser(toFollow);
       followedNow = true;
     }
-
-    // Create notification for followed user if just followed (prevent multiple notifications)
+    // Create notification for followed user if just followed
     if (followedNow) {
       const notif = new Notification({
         sender: myId,
@@ -104,7 +97,6 @@ router.post('/:id/follow', requireAuth, async (req, res) => {
       });
       await notif.save();
     }
-
     res.json({ success: true, message: 'Followed', myFollowing: me.following.length, theirFollowers: toFollow.followers.length });
   } catch(e) {
     res.status(500).json({ error: "Failed to follow" });
@@ -121,18 +113,17 @@ router.post('/:id/unfollow', requireAuth, async (req, res) => {
     return res.status(400).json({ error: "Cannot unfollow yourself" });
 
   try {
-    const [me, toUnfollow] = await Promise.all([
-      User.findById(myId),
-      User.findById(toUnfollowId)
-    ]);
+    const me = await User.findById(myId);
+    const toUnfollow = await User.findById(toUnfollowId);
     if (!me || !toUnfollow)
       return res.status(404).json({ error: "User not found" });
 
     me.following = me.following.filter(fid => fid.toString() !== toUnfollowId);
-    await me.save();
+    await User.saveUser(me);
 
     toUnfollow.followers = toUnfollow.followers.filter(fid => fid.toString() !== myId);
-    await toUnfollow.save();
+    await User.saveUser(toUnfollow);
+
     res.json({ success: true, message: 'Unfollowed', myFollowing: me.following.length, theirFollowers: toUnfollow.followers.length });
   } catch (e) {
     res.status(500).json({ error: "Failed to unfollow" });
@@ -143,12 +134,19 @@ router.post('/:id/unfollow', requireAuth, async (req, res) => {
 // Get followers of a user (by user id)
 router.get('/:id/followers', async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).populate('followers', 'name avatar email');
+    const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Populate followers
+    const allUsers = await User.getAll();
+    const followerObjs = user.followers.map(fid =>
+      allUsers.find(u => u.id === fid)
+    ).filter(Boolean);
+
     res.json({ 
-      count: user.followers.length,
-      followers: user.followers.map(u => ({
-        id: u._id,
+      count: followerObjs.length,
+      followers: followerObjs.map(u => ({
+        id: u.id,
         name: u.name,
         avatar: u.avatar,
         email: u.email
@@ -163,12 +161,19 @@ router.get('/:id/followers', async (req, res) => {
 // Get users this user is following (by user id)
 router.get('/:id/following', async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).populate('following', 'name avatar email');
+    const user = await User.findById(req.params.id);
     if (!user) return res.status(404).json({ error: "User not found" });
+
+    // Populate following
+    const allUsers = await User.getAll();
+    const followingObjs = user.following.map(fid =>
+      allUsers.find(u => u.id === fid)
+    ).filter(Boolean);
+
     res.json({ 
-      count: user.following.length,
-      following: user.following.map(u => ({
-        id: u._id,
+      count: followingObjs.length,
+      following: followingObjs.map(u => ({
+        id: u.id,
         name: u.name,
         avatar: u.avatar,
         email: u.email
