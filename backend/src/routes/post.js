@@ -83,6 +83,27 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+/**
+ * GET /api/posts/tags
+ * Returns a sorted list of all unique tags on published posts
+ * Auth required (employee)
+ * PUBLIC_INTERFACE
+ */
+router.get('/tags', requireAuth, async (req, res) => {
+  try {
+    // Aggregate unique tags from published posts
+    const tags = await Post.aggregate([
+      { $match: { published: true } },
+      { $unwind: "$tags" },
+      { $group: { _id: null, tagSet: { $addToSet: "$tags" } } },
+      { $project: { _id: 0, tags: { $sortArray: { input: "$tagSet", sortBy: 1 } } } }
+    ]);
+    res.json({ tags: tags.length ? tags[0].tags : [] });
+  } catch (err) {
+    console.error('Tag list error:', err);
+    res.status(500).json({ error: 'Failed to fetch tags' });
+  }
+});
 
 // Leave the create post endpoint stub
 router.post('/', requireAuth, (req, res) => {
