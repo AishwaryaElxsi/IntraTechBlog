@@ -102,17 +102,41 @@ function formatRelativeDate(dateStr) {
   return d.toLocaleDateString();
 }
 
-// PUBLIC_INTERFACE
+/**
+ * Profile page (other employee or self).
+ *
+ * - If /profile or no id param: show own profile (from context or self API).
+ * - If /profile/:id: show that user's profile and published blogs.
+ * - Show follow/unfollow button & status if not own profile.
+ * - Integrate follow/unfollow backend, and update follower/following counts.
+ */
 function Profile() {
-  const { user } = useContext(AuthContext);
+  const { user, setUser } = useContext(AuthContext);
   const navigate = useNavigate();
+  const params = useParams();
+  const location = useLocation();
 
-  const [profile, setProfile] = useState(null); // User info (can use context or re-fetch)
+  // Detect profile being viewed: id param or self
+  // If /profile/:id, the param "id" exists; else it's own profile
+  const otherUserId = params.id;
+
+  // Profile state (profile is the *viewed* user, user is logged-in user)
+  const [profile, setProfile] = useState(null); // user object for displayed profile
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [engagement, setEngagement] = useState({ totalClaps: 0, totalComments: 0 });
   const [tab, setTab] = useState(0);
 
+  // Follower/following info
+  const [followersCount, setFollowersCount] = useState(0);
+  const [followingCount, setFollowingCount] = useState(0);
+  const [iFollow, setIFollow] = useState(false); // Current user follows this profile?
+  const [actionPending, setActionPending] = useState(false);
+
+  // Feedback snackbar
+  const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
+
+  // Refetch when viewing different profile or user changes
   useEffect(() => {
     if (!user) {
       setTimeout(() => navigate("/login"), 1200);
@@ -120,81 +144,131 @@ function Profile() {
     }
     fetchProfileAndArticles();
     // eslint-disable-next-line
-  }, [user]);
+  }, [otherUserId, user]);
 
-  // Fetch user profile and blogs written by this user
-  // PUBLIC_INTERFACE
+  // Fetch info: for own profile or other
   const fetchProfileAndArticles = async () => {
     setLoading(true);
     try {
-      // Use context for own user profile, or load from endpoint if needed
-      let profileData = user;
-      let bio = "";
-      // Optionally in real systems, GET /api/users/profile?bio
-      // We'll use stub for bio for current profile
-      // Revisit if bio is stored in db
-      if (!profileData) return;
-      // Fetch all published posts by this user, with "tech" tags only
-      const res = await axios.get("/api/posts?author=" + encodeURIComponent(profileData.id), { withCredentials: true });
-      // Note: current backend /api/posts endpoint does not support author filter, so we'll filter client-side
-      // If supported, use ?author=...&
-      let posts = res.data.posts || [];
-      // Ensure: only posts by this user AND has at least one tech tag
+      let profileData, showOwn;
+      let followers = 0, following = 0, iFollowNow = false, blogsArr = [];
+      let resp;
+      if (!otherUserId || (user && (user.id === otherUserId || user._id === otherUserId))) {
+        // Viewing own profile (from context is sufficient)
+        showOwn = true;
+        profileData = user;
+        followers = user?.followers || 0;
+        following = user?.following || 0;
+      } else {
+        // Viewing another user's profile by id
+        showOwn = false;
+        // Fetch user profile, followers/ing counts, and check if current user follows them
+        // 1. Profile: GET /api/users/{id}
+        resp = await axios.get(`/api/users/${otherUserId}`, { withCredentials: true });
+        profileData = {
+          ...resp.data.user,
+        };
+        // 2. Followers count/list
+        const followersRes = await axios.get(`/api/users/${otherUserId}/followers`, { withCredentials: true });
+        followers = followersRes.data.count;
+        // 3. Following count/list
+        const followingRes = await axios.get(`/api/users/${otherUserId}/following`, { withCredentials: true });
+        following = followingRes.data.count;
+        // 4. Does logged-in user follow this user?
+        if (followersRes.data && followersRes.data.followers && user) {
+          iFollowNow = followersRes.data.followers.some(u => u.id === user.id || u._id === user.id);
+        }
+      }
+
+      // Blogs posted by this profile (filter tech-only)
+      const postsRes = await axios.get("/api/posts?author=" + encodeURIComponent(profileData.id || profileData._id || otherUserId), { withCredentials: true });
+      let posts = postsRes.data.posts || [];
       const TECH_TAGS = [
         "tech", "engineering", "development", "dev", "software", "backend", "frontend", "cloud", "security", "code", "architecture"
       ];
       posts = posts.filter(
         p =>
           p.author &&
-          ((p.author.id && p.author.id === profileData.id) || (p.author._id && p.author._id === profileData.id)) &&
+          ((p.author.id && (p.author.id === (profileData.id || profileData._id)))
+            || (p.author._id && (p.author._id === (profileData.id || profileData._id))))
+          &&
           (p.tags || []).some(tag => TECH_TAGS.includes(tag.toLowerCase()))
       );
-      // Compute engagement summary (sum likes, comments for now; comments would require extra API or stub)
+      blogsArr = posts;
+
+      // Compute engagement summary (likes, comments)
       let totalClaps = 0, totalComments = 0;
-      // Need to fetch details for likes/comments numbers individually (as summary not in short post API)
       await Promise.all(
-        posts.map(async post => {
+        blogsArr.map(async post => {
           try {
-            const detail = await axios.get(`/api/posts/${post.id}`, { withCredentials: true });
+            let detail = await axios.get(`/api/posts/${post.id}`, { withCredentials: true });
             post.likes = detail.data.likes || [];
             post.reactions = detail.data.reactions || [];
             totalClaps += post.likes.length;
-            // Fetch comment count
-            const commentCountRes = await axios.get(`/api/comments?post=${post.id}`, { withCredentials: true });
+            let commentCountRes = await axios.get(`/api/comments?post=${post.id}`, { withCredentials: true });
             post.commentCount = (commentCountRes.data.comments || []).length;
             totalComments += post.commentCount;
-          } catch {
-            // ignore on error
-          }
+          } catch {}
         })
       );
-      setProfile({ ...profileData, bio });
-      setBlogs(posts);
+
+      setProfile(profileData);
+      setBlogs(blogsArr);
+      setFollowersCount(followers);
+      setFollowingCount(following);
       setEngagement({ totalClaps, totalComments });
-    } catch {
-      // fallback empty
-      setProfile(user);
+      setIFollow(iFollowNow);
+    } catch (err) {
+      setSnackbar({ open: true, message: "Failed to load profile.", severity: "error" });
+      setProfile(null);
       setBlogs([]);
+      setFollowersCount(0);
+      setFollowingCount(0);
       setEngagement({ totalClaps: 0, totalComments: 0 });
     }
     setLoading(false);
   };
 
-  // Optionally future: load followers/followings, here stub as 0
-  const followers = 0, following = 0;
-
-  // Handle tab change
-  const handleTab = (event, v) => {
-    setTab(v);
+  // Follow button click
+  const handleFollow = async () => {
+    if (!user || !profile) return;
+    setActionPending(true);
+    try {
+      await axios.post(`/api/users/${profile.id || profile._id}/follow`, {}, { withCredentials: true });
+      setIFollow(true);
+      setFollowersCount(fc => fc + 1);
+      setSnackbar({ open: true, message: "Now following.", severity: "success" });
+    } catch (err) {
+      setSnackbar({ open: true, message: err?.response?.data?.error || "Failed to follow.", severity: "error" });
+    }
+    setActionPending(false);
+  };
+  // Unfollow button click
+  const handleUnfollow = async () => {
+    if (!user || !profile) return;
+    setActionPending(true);
+    try {
+      await axios.post(`/api/users/${profile.id || profile._id}/unfollow`, {}, { withCredentials: true });
+      setIFollow(false);
+      setFollowersCount(fc => (fc > 0 ? fc - 1 : 0));
+      setSnackbar({ open: true, message: "Unfollowed.", severity: "info" });
+    } catch (err) {
+      setSnackbar({ open: true, message: err?.response?.data?.error || "Failed to unfollow.", severity: "error" });
+    }
+    setActionPending(false);
   };
 
+  // Handle tab change
+  const handleTab = (event, v) => setTab(v);
+
+  // Basic guards
   if (!user) {
     return (
       <ProfileContainer>
         <ProfilePaper>
           <Box sx={{ textAlign: "center", mt: 14, mb: 12 }}>
             <CircularProgress size={44} />
-            <Typography sx={{ mt: 3 }} color="text.secondary">Checking authentication&hellip;</Typography>
+            <Typography sx={{ mt: 3 }} color="text.secondary">Checking authentication…</Typography>
           </Box>
         </ProfilePaper>
       </ProfileContainer>
@@ -212,6 +286,45 @@ function Profile() {
         </ProfilePaper>
       </ProfileContainer>
     );
+  }
+  if (!profile) {
+    return (
+      <ProfileContainer>
+        <ProfilePaper>
+          <Typography sx={{ my: 16 }} color="error" align="center">Profile not found.</Typography>
+        </ProfilePaper>
+      </ProfileContainer>
+    );
+  }
+
+  // Self view: don't show follow button
+  const isSelf = user && profile && (user.id === profile.id || user.id === profile._id);
+
+  // Render follow/unfollow button (not for self)
+  let followBtn = null;
+  if (!isSelf) {
+    followBtn =
+      iFollow ? (
+        <Button
+          variant="outlined"
+          color="secondary"
+          onClick={handleUnfollow}
+          disabled={actionPending}
+          sx={{ fontWeight: 700, borderRadius: 2, minWidth: 136, ml: 1, my: .7 }}
+        >
+          Unfollow
+        </Button>
+      ) : (
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleFollow}
+          disabled={actionPending}
+          sx={{ fontWeight: 700, borderRadius: 2, minWidth: 136, ml: 1, my: .7 }}
+        >
+          Follow
+        </Button>
+      );
   }
 
   return (
@@ -237,13 +350,19 @@ function Profile() {
                   <Typography sx={{ fontSize: 15, opacity: .84 }}>Blogs Published</Typography>
                 </Box>
                 <Box>
-                  <Typography variant="h6" color="secondary" fontWeight={800}>{followers}</Typography>
+                  <Typography variant="h6" color="secondary" fontWeight={800}>{followersCount}</Typography>
                   <Typography sx={{ fontSize: 15, opacity: .84 }}>Followers</Typography>
                 </Box>
                 <Box>
-                  <Typography variant="h6" color="secondary" fontWeight={800}>{following}</Typography>
+                  <Typography variant="h6" color="secondary" fontWeight={800}>{followingCount}</Typography>
                   <Typography sx={{ fontSize: 15, opacity: .84 }}>Following</Typography>
                 </Box>
+                {!isSelf && (
+                  <Box>
+                    {followBtn}
+                    {/* Relationship indicator */}
+                  </Box>
+                )}
               </StatBox>
             </Box>
           </AuthorHeader>
@@ -268,9 +387,6 @@ function Profile() {
           <Divider sx={{ mt: 2, mb: 2 }} />
           <Tabs value={tab} onChange={handleTab} sx={{ minHeight: 40 }}>
             <Tab label="Published Tech Blogs" sx={{ fontWeight: 700, fontSize: 16, textTransform: "none" }} />
-            {/* Stubs: Future tabs */}
-            {/* <Tab label="Drafts" disabled />
-            <Tab label="Likes" disabled /> */}
           </Tabs>
           <BlogList>
             {tab === 0 && (
@@ -302,7 +418,6 @@ function Profile() {
                         fontSize: 15, maxHeight: 46, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis'
                       }}>
                         {post.snippet}
-                        {/* Show short snippet, or could put never-used post.description */}
                       </Typography>
                       <Stack direction="row" spacing={3} sx={{ mt: .9 }}>
                         <Box sx={{ fontSize: 14, color: "#4269a3" }}>
@@ -321,18 +436,27 @@ function Profile() {
               )
             )}
           </BlogList>
-          {/* Optionally: section to prompt for editing profile or add bio in future */}
           <Box sx={{ textAlign: "center", mt: 3, mb: -2 }}>
-            <Button
-              variant="outlined"
-              color="primary"
-              sx={{ fontWeight: 700, borderRadius: 3, px: 4, textTransform: "none", boxShadow: "none" }}
-              disabled
-              title="Profile editing coming soon"
-            >Edit Profile (coming soon)</Button>
+            {isSelf ? (
+              <Button
+                variant="outlined"
+                color="primary"
+                sx={{ fontWeight: 700, borderRadius: 3, px: 4, textTransform: "none", boxShadow: "none" }}
+                disabled
+                title="Profile editing coming soon"
+              >Edit Profile (coming soon)</Button>
+            ) : null}
           </Box>
         </ProfilePaper>
       </Fade>
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={2600}
+        onClose={() => setSnackbar(s => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: "top", horizontal: "center" }}
+      >
+        <Alert severity={snackbar.severity}>{snackbar.message}</Alert>
+      </Snackbar>
     </ProfileContainer>
   );
 }
