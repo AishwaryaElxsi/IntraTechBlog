@@ -12,7 +12,11 @@ const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   avatar: { type: String },
   role: { type: String, enum: ['user', 'admin'], default: 'user' },
-  createdAt: { type: Date, default: Date.now }
+  createdAt: { type: Date, default: Date.now },
+
+  // Followers/following as arrays of User ObjectIds
+  followers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  following: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, { timestamps: true });
 
 /**
