@@ -120,5 +120,16 @@ export class User {
   }
 }
 
+/**
+ * Utility to create and save a local user with a hashed password.
+ * PUBLIC_INTERFACE
+ */
+export async function createAndSaveLocalUser({ name, email, password, role = 'user' }) {
+  const user = new User({ name, email, role });
+  await user.setPassword(password);
+  await User.saveUser(user);
+  return user;
+}
+
 // Default export to maintain compatibility with original code
 export default User;
