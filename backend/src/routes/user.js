@@ -61,6 +61,7 @@ router.get('/profile', requireAuth, async (req, res) => {
   }
 });
 
+import Notification from '../models/Notification.js';
 // PUBLIC_INTERFACE
 // Follow another employee (by user id)
 router.post('/:id/follow', requireAuth, async (req, res) => {
@@ -79,14 +80,31 @@ router.post('/:id/follow', requireAuth, async (req, res) => {
       return res.status(404).json({ error: "User not found" });
 
     // Add only if not already following
+    let followedNow = false;
     if (!me.following.includes(toFollowId)) {
       me.following.push(toFollowId);
       await me.save();
+      followedNow = true;
     }
     if (!toFollow.followers.includes(myId)) {
       toFollow.followers.push(myId);
       await toFollow.save();
+      followedNow = true;
     }
+
+    // Create notification for followed user if just followed (prevent multiple notifications)
+    if (followedNow) {
+      const notif = new Notification({
+        sender: myId,
+        recipient: toFollowId,
+        type: 'follow',
+        message: `${me.name} started following you`,
+        unread: true,
+        createdAt: new Date()
+      });
+      await notif.save();
+    }
+
     res.json({ success: true, message: 'Followed', myFollowing: me.following.length, theirFollowers: toFollow.followers.length });
   } catch(e) {
     res.status(500).json({ error: "Failed to follow" });
